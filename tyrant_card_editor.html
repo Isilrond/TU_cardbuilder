@@ -898,11 +898,23 @@ function loadImg(e){
 
 function resetAll(){
   if(!confirm('Reset everything and start a new blank card?'))return;
-  fusionData=[makeEmptyFusion(0),makeEmptyFusion(1),makeEmptyFusion(2)];
+  // Reset state
   curFusion=0;curLevel=0;uploadedImgSrc=null;uploadedFilename='';
-  sharedRarity=1;sharedCost=0;
-  document.getElementById('cardArt').style.display='none';document.getElementById('cardPh').style.display='flex';
+  sharedRarity=3;sharedCost=0;cardUnitType=0;isBaseFusion=false;dominionType='';
+  // Reset UI
+  document.getElementById('shRarity').value=3;
+  document.getElementById('shCost').value=0;
+  document.getElementById('cardArt').style.display='none';
+  document.getElementById('cardPh').style.display='flex';
   const pn=document.getElementById('pictureName');pn.textContent='none';pn.style.color='#555';pn.style.fontStyle='italic';
+  // Uncheck Base Fusion
+  const bfCb=document.getElementById('isBaseFusion');if(bfCb)bfCb.checked=false;
+  // Reset dominion buttons
+  setDominionType('');
+  // Rebuild structure for Epic (3 fusions, 6 levels)
+  fusionData=[makeEmptyFusion(0),makeEmptyFusion(1),makeEmptyFusion(2)];
+  rebuildFusionStructure();
+  buildCardTypeButtons();
   buildFusionTabs();buildLevelTabs();skillRows=[];loadCurrent();
 }
 
