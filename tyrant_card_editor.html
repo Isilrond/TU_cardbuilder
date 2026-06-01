@@ -147,6 +147,16 @@ body{font-family:system-ui,sans-serif;font-size:13px;background:#1a1a1a;color:#e
     <div class="xml-box" id="xmlOut"></div>
     <button class="copy-btn" onclick="copyXml()">⎘ Copy XML</button>
   </div>
+  <div class="panel" style="margin-top:0">
+    <div class="panel-title">Recipe output</div>
+    <div class="xml-box" id="recipeOut" style="max-height:160px"></div>
+    <button class="copy-btn" onclick="copyRecipe()" style="margin-top:4px">⎘ Copy Recipe</button>
+    <div style="margin-top:8px">
+      <div style="font-size:10px;color:#888;margin-bottom:4px">Resources (for fusion recipes):</div>
+      <div id="recipeResourceRows"></div>
+      <button class="add-skill-btn" onclick="addRecipeResource()" style="margin-top:3px;font-size:10px">+ Add resource</button>
+    </div>
+  </div>
 </div>
 <div class="editor">
   <div class="const-box">
@@ -173,7 +183,11 @@ body{font-family:system-ui,sans-serif;font-size:13px;background:#1a1a1a;color:#e
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:120px">
-        <label style="font-size:11px;color:#4a8a4a;white-space:nowrap;min-width:44px">Card set</label>
+        <label style="font-size:11px;color:#4a8a4a;white-space:nowrap;min-width:44px;display:flex;align-items:center;gap:4px">
+          Card set
+          <input type="checkbox" id="isBaseFusion" onchange="toggleBaseFusion()" style="cursor:pointer" title="Base Fusion — only F2, 6 levels, set 2500">
+          <span style="font-size:10px;color:#7abcf4;cursor:pointer" onclick="document.getElementById('isBaseFusion').click()">Base Fusion</span>
+        </label>
         <select id="fSet" onchange="saveBase()" style="background:#1a2a1a;border:1px solid #2a6a2a;border-radius:5px;color:#c0d8c0;font-size:12px;padding:3px 5px;flex:1;outline:none">
           <option value="1000">Standard (1000)</option><option value="2000">Fusion (2000)</option>
           <option value="2500">Base Fusion (2500)</option><option value="3000">Box (3000)</option>
@@ -204,7 +218,8 @@ body{font-family:system-ui,sans-serif;font-size:13px;background:#1a1a1a;color:#e
   <div class="field"><label>Name</label><input type="text" id="fName" placeholder="Card name…" oninput="onNameChange()"></div>
   <div class="field">
     <label>ID <span id="nextIdHint" style="font-size:10px;color:#555;font-style:italic;font-weight:400;margin-left:6px">Fetching next free ID…</span></label>
-    <input type="text" id="fId" placeholder="e.g. 68292" oninput="saveId()">
+    <input type="text" id="fId" placeholder="e.g. 68292" oninput="saveId()" onchange="saveId()" onblur="saveId()">
+    <span id="curLevelIdInfo" style="font-size:10px;color:#6a9a6a;margin-top:2px"></span>
   </div>
   <div class="pic-row">
     <span class="lbl">Image file</span>
@@ -417,7 +432,10 @@ function buildFusionTabs(){
       b.appendChild(img);
     }
     b.appendChild(document.createTextNode('F'+f.fusion_level+(f.levels.length===1?' (1)':'')));
-    b.onclick=()=>{curFusion=i;curLevel=0;loadCurrent();
+    b.onclick=()=>{if(curFusion===0&&curLevel===0)saveId();curFusion=i;curLevel=0;loadCurrent();buildFusionTabs();buildLevelTabs();};
+    c.appendChild(b);
+  });
+}
 function filterInt(el){el.value=el.value.replace(/[^0-9]/g,'');}
 function blockNonInt(e){if(['e','E','+','-','.'].includes(e.key))e.preventDefault();}
 function setLevel(key,el){
@@ -467,8 +485,17 @@ function autoFillIds(baseId){
       offset++;
     });
   });
-  // Update displayed field
-  document.getElementById('fId').value = fusionData[curFusion].levels[curLevel].card_id;
+  // Update fId to show current level's ID
+  const fIdEl2=document.getElementById('fId');
+  if(fIdEl2){
+    fIdEl2.value=gl().card_id||'';
+    const isBase2=(curFusion===0&&curLevel===0);
+    fIdEl2.readOnly=!isBase2;
+    fIdEl2.style.opacity=isBase2?'1':'0.6';
+    fIdEl2.style.cursor=isBase2?'text':'default';
+  }
+  const curIdInfo=document.getElementById('curLevelIdInfo');
+  if(curIdInfo) curIdInfo.textContent='';
   buildLevelTabs();
   checkAllIds();
   sync();
@@ -489,24 +516,30 @@ function checkAllIds(){
   // Store globally for getWarnings to pick up
   window._idConflicts = conflicts;
 }
-buildFusionTabs();buildLevelTabs();};
-    c.appendChild(b);
-  });
-}
 function buildLevelTabs(){
   const c=document.getElementById('levelTabs');c.innerHTML='';
   gf().levels.forEach((l,i)=>{
     const hw=levelHasWarning(curFusion,i);
     const b=document.createElement('button');b.className='tab'+(i===curLevel?' lvl-active':'')+(hw?' warn':'');
     b.textContent='Lvl '+l.level+(hw?' ⚠':'');
-    b.onclick=()=>{curLevel=i;loadCurrent();buildLevelTabs();};
+    b.onclick=()=>{if(curFusion===0&&curLevel===0)saveId();curLevel=i;loadCurrent();buildLevelTabs();};
     c.appendChild(b);
   });
 }
 function loadCurrent(){
   const f=gf(),l=gl();
   document.getElementById('fName').value=f.name;
-  document.getElementById('fId').value=l.card_id;
+  // fId shows current level's ID; editable only on F0L1
+  const fIdEl=document.getElementById('fId');
+  if(fIdEl){
+    fIdEl.value=l.card_id||'';
+    const isBase=(curFusion===0&&curLevel===0);
+    fIdEl.readOnly=!isBase;
+    fIdEl.style.opacity=isBase?'1':'0.6';
+    fIdEl.style.cursor=isBase?'text':'default';
+  }
+  const curIdInfo=document.getElementById('curLevelIdInfo');
+  if(curIdInfo) curIdInfo.textContent='';
   document.getElementById('fType').value=f.type;
   const edFic2=document.getElementById('edFactionIc');
   if(edFic2){const fic=FACTION_IC[f.type]||'';edFic2.src=fic;edFic2.style.display=fic?'inline':'none';}
@@ -533,13 +566,15 @@ function adjShared(key,d){
 }
 function onNameChange(){gf().name=document.getElementById('fName').value;sync();}
 function saveId(){
+  // Only act when editing the base ID (F0L1)
+  if(curFusion!==0||curLevel!==0) return;
   const val = document.getElementById('fId').value;
-  gl().card_id = val;
-  // Auto-fill all IDs if on Fusion 0, Level 0 (base card)
-  if(curFusion === 0 && curLevel === 0 && val){
+  if(val){
     autoFillIds(val);
-    return; // autoFillIds calls sync()
+    return;
   }
+  // If cleared: clear all card_ids
+  fusionData.forEach(f => f.levels.forEach(l => { l.card_id = ''; }));
   checkAllIds();
   sync();
 }
@@ -548,6 +583,7 @@ function saveBase(){
   f0.type=parseInt(document.getElementById('fType').value);
   f0.set=parseInt(document.getElementById('fSet').value);
   fusionData.forEach(f=>{f.type=f0.type;f.set=f0.set;});
+  if(isBaseFusion) fusionData.forEach(f=>{f.set=2500;});
   const edFic=document.getElementById('edFactionIc');
   if(edFic){const fic=FACTION_IC[f0.type]||'';edFic.src=fic;edFic.style.display=fic?'inline':'none';}
   buildSkillRows();sync();
@@ -596,6 +632,19 @@ function getSkillDesc(sk) {
   else                        desc = d.d || '';
   desc = desc.replace(/\by\b/g, facName);
   return desc;
+}
+
+// Verified summon offset rule (from Wisp family, cards_section_21):
+// 6 unique IDs across 18 positions — offset = index into summoned card Lvl1-6
+const SUMMON_OFFSET = {
+  '0,0':0,'0,1':0,'0,2':0,'0,3':0,'0,4':1,'0,5':1,
+  '1,0':1,'1,1':1,'1,2':2,'1,3':2,'1,4':3,'1,5':3,
+  '2,0':3,'2,1':3,'2,2':3,'2,3':4,'2,4':4,'2,5':5
+};
+// For fusions beyond F2 or levels beyond 6: use last offset (5)
+function getSummonOffset(fi, li) {
+  const key = fi+','+li;
+  return SUMMON_OFFSET.hasOwnProperty(key) ? SUMMON_OFFSET[key] : 5;
 }
 
 function renderSkillRow(i){
@@ -653,29 +702,49 @@ function renderSkillRow(i){
       cidLbl.textContent = 'Card ID';
       const cidInp = document.createElement('input');
       cidInp.type = 'number';
-      cidInp.value = sk.card_id || '';
+      // Always show base summon ID (from F0L1), readonly on other levels
+      const baseSummonId = fusionData[0]?.levels[0]?.skills?.find?.(s=>s.id==='summon')?.card_id || sk.card_id || '';
+      cidInp.value = baseSummonId;
+      const isBaseLevel = (curFusion===0 && curLevel===0);
+      cidInp.readOnly = !isBaseLevel;
+      cidInp.style.opacity = isBaseLevel ? '1' : '0.6';
       cidInp.placeholder = 'base ID';
       cidInp.style.cssText = 'width:60px;background:#222;border:1px solid #444;border-radius:4px;color:#e0e0e0;font-size:11px;padding:2px 4px;outline:none;-moz-appearance:textfield;';
       cidInp.onkeydown = (e) => { if(['e','E','+','-','.'].includes(e.key)) e.preventDefault(); };
       cidInp.oninput = () => { cidInp.value = cidInp.value.replace(/[^0-9]/g,''); };
-      cidInp.onchange = () => { skillRows[i].card_id = parseInt(cidInp.value)||0; saveLevelSkills(); sync(); };
+      cidInp.onchange = () => {
+        if(curFusion!==0||curLevel!==0) return;
+        skillRows[i].card_id = parseInt(cidInp.value)||0;
+        saveLevelSkills();
+        sync();
+      };
       // Auto-fill button
       const autoBtn = document.createElement('button');
       autoBtn.className = 'tog';
       autoBtn.textContent = '⟳ Fill all';
-      autoBtn.title = 'Auto-fill summon IDs across all levels & fusions';
+      autoBtn.title = 'If field is empty: auto-calculates from card IDs (max card ID + 1). Otherwise uses entered value. Fills across all levels & fusions.';
       autoBtn.style.cssText = 'font-size:9px;padding:2px 6px;margin-left:3px;height:20px;';
       autoBtn.onclick = () => {
-        const base = parseInt(cidInp.value)||0;
-        if(!base){ alert('Enter a base card_id first'); return; }
-        // Multi-fusion mode: F0L1=base, F0L2=base+1...F0L6=base+5, F1L1=base+6...F2L6=base+17
-        const isMultiFusion = document.getElementById('summonMultiFusion')?.checked;
+        // Determine base summon ID
+        let base = parseInt(cidInp.value)||0;
+        if(!base) {
+          // Auto-calc: max card ID of this card + 1
+          let maxCardId = 0;
+          fusionData.forEach(f => f.levels.forEach(l => {
+            const id = parseInt(l.card_id)||0;
+            if(id > maxCardId) maxCardId = id;
+          }));
+          if(!maxCardId){ alert('Enter a base summon card_id, or fill in the card IDs first.'); return; }
+          base = maxCardId + 1;
+          cidInp.value = base;
+          skillRows[i].card_id = base;
+        }
+        // Apply verified summon offset rule (Wisp family confirmed):
+        // 6 unique IDs, each position uses getSummonOffset(fi, li)
         fusionData.forEach((f, fi) => {
           f.levels.forEach((l, li) => {
-            const offset = isMultiFusion ? fi*6 + li : li;
-            // Find the summon skill in this level and update its card_id
             l.skills.forEach(sk2 => {
-              if(sk2.id === 'summon') sk2.card_id = base + offset;
+              if(sk2.id === 'summon') sk2.card_id = base + getSummonOffset(fi, li);
             });
           });
         });
@@ -683,30 +752,19 @@ function renderSkillRow(i){
         buildSkillRows();
         sync();
       };
-      cidWrap.append(cidLbl, cidInp, autoBtn);
-      row.appendChild(cidWrap);
-      // Multi-fusion toggle (only show once)
-      if(!document.getElementById('summonMultiFusion')){
-        const mfWrap = document.createElement('div');
-        mfWrap.className = 'attr-wrap';
-        const mfLbl = document.createElement('div');
-        mfLbl.className = 'attr-lbl';
-        mfLbl.textContent = 'Mode';
-        const mfRow = document.createElement('div');
-        mfRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
-        const mfCb = document.createElement('input');
-        mfCb.type = 'checkbox';
-        mfCb.id = 'summonMultiFusion';
-        mfCb.style.cursor = 'pointer';
-        const mfText = document.createElement('label');
-        mfText.htmlFor = 'summonMultiFusion';
-        mfText.style.cssText = 'font-size:9px;color:#888;cursor:pointer;white-space:nowrap;';
-        mfText.textContent = 'Multi-fusion';
-        mfText.title = 'Checked: F0L1=base, F0L6=base+5, F1L1=base+6 ... F2L6=base+17\nUnchecked: each fusion gets same base+level offset';
-        mfRow.append(mfCb, mfText);
-        mfWrap.append(mfLbl, mfRow);
-        row.appendChild(mfWrap);
+      // On non-base levels: show info label for what this level summons
+      if(!(curFusion===0&&curLevel===0)) {
+        const infoLbl = document.createElement('span');
+        infoLbl.style.cssText = 'font-size:9px;color:#6a9a6a;margin-left:4px';
+        const baseId = parseInt(baseSummonId)||0;
+        const off = getSummonOffset(curFusion, curLevel);
+        infoLbl.textContent = baseId ? `→ summons Lvl${off+1} (ID ${baseId + off})` : '';
+        cidWrap.append(cidLbl, cidInp, autoBtn, infoLbl);
+      } else {
+        cidWrap.append(cidLbl, cidInp, autoBtn);
       }
+      row.appendChild(cidWrap);
+
     }
     if(row.children.length)div.appendChild(row);
   }
@@ -763,6 +821,7 @@ function sync(){
   const ab=f.asset_bundle||'';
   const abEl=document.getElementById('abVal');abEl.textContent=ab||'—';abEl.style.color=ab?'#aaa':'#555';abEl.style.fontStyle=ab?'normal':'italic';
   document.getElementById('xmlOut').textContent=buildXml();
+  buildRecipeXml();
 }
 
 function skillToXml(sk,ind,fid){
@@ -1155,6 +1214,128 @@ function rebuildFusionStructure() {
   fusionData = newFusions;
   curFusion = Math.min(curFusion, fusionData.length-1);
   curLevel  = Math.min(curLevel, fusionData[curFusion].levels.length-1);
+}
+
+
+// ── Base Fusion ──────────────────────────────────────────────────────────────
+let isBaseFusion = false;
+
+function toggleBaseFusion() {
+  isBaseFusion = document.getElementById('isBaseFusion').checked;
+  if(isBaseFusion) {
+    // Base Fusion: only F2, 6 levels, card set 2500
+    fusionData = [makeEmptyFusion(2)];  // only F2
+    fusionData[0].fusion_level = 2;
+    fusionData[0].set = 2500;
+    sharedRarity = parseInt(document.getElementById('shRarity').value)||3;
+    document.getElementById('fSet').value = 2500;
+    fusionData.forEach(f => f.set = 2500);
+  } else {
+    // Restore normal structure
+    fusionData = [makeEmptyFusion(0), makeEmptyFusion(1), makeEmptyFusion(2)];
+    rebuildFusionStructure();
+  }
+  curFusion = 0; curLevel = 0;
+  buildFusionTabs(); buildLevelTabs(); loadCurrent(); sync();
+}
+
+// ── Recipe resources ──────────────────────────────────────────────────────────
+let recipeResources = [];  // [{card_id, number}]
+
+function addRecipeResource() {
+  recipeResources.push({card_id: '', number: 1});
+  renderRecipeResources();
+  buildRecipeXml();
+}
+
+function renderRecipeResources() {
+  const c = document.getElementById('recipeResourceRows');
+  if(!c) return;
+  c.innerHTML = '';
+  recipeResources.forEach((res, ri) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:4px;align-items:center;margin-bottom:4px';
+    const cidInp = document.createElement('input');
+    cidInp.type = 'number'; cidInp.value = res.card_id; cidInp.placeholder = 'Card ID';
+    cidInp.style.cssText = 'width:70px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#e0e0e0;font-size:11px;padding:3px 5px;outline:none';
+    cidInp.oninput = () => { recipeResources[ri].card_id = cidInp.value.replace(/[^0-9]/g,''); buildRecipeXml(); };
+    const numLbl = document.createElement('span');
+    numLbl.style.cssText = 'font-size:10px;color:#888';
+    numLbl.textContent = '×';
+    const numInp = document.createElement('input');
+    numInp.type = 'number'; numInp.value = res.number; numInp.min = 1;
+    numInp.style.cssText = 'width:40px;background:#2a2a2a;border:1px solid #444;border-radius:4px;color:#e0e0e0;font-size:11px;padding:3px 5px;outline:none';
+    numInp.oninput = () => { recipeResources[ri].number = parseInt(numInp.value)||1; buildRecipeXml(); };
+    const del = document.createElement('button');
+    del.className = 'del-btn'; del.textContent = '✕'; del.style.cssText = 'width:18px;height:18px;font-size:10px';
+    del.onclick = () => { recipeResources.splice(ri,1); renderRecipeResources(); buildRecipeXml(); };
+    // Show card name from ID_MAP if known
+    const nameSpan = document.createElement('span');
+    nameSpan.style.cssText = 'font-size:9px;color:#6a9a6a;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    if(res.card_id) {
+      const info = ID_MAP.get(parseInt(res.card_id));
+      nameSpan.textContent = info || '';
+    }
+    row.append(cidInp, numLbl, numInp, del, nameSpan);
+    c.appendChild(row);
+  });
+}
+
+function buildRecipeXml() {
+  const base = fusionData[0];
+  const baseId = base.levels[0].card_id;
+  if(!baseId) { 
+    const el = document.getElementById('recipeOut');
+    if(el) el.textContent = '(fill in card IDs first)';
+    return;
+  }
+  
+  let xml = '';
+  // For each level upgrade (L1→L2, L2→L3... L5→L6):
+  // Standard upgrade: result = current level ID, resource = previous level ID ×2
+  // Only if recipeResources is empty
+  
+  if(recipeResources.length === 0) {
+    // Auto-generate standard upgrade recipes for all levels within each fusion
+    fusionData.forEach(f => {
+      f.levels.forEach((l, li) => {
+        if(li === 0) return; // no recipe for L1
+        const prevId = f.levels[li-1].card_id;
+        const curId = l.card_id;
+        if(!prevId || !curId) return;
+        xml += `	<fusion_recipe>
+		<card_id>${curId}</card_id>
+		<resource card_id="${prevId}" number="2"/>
+	</fusion_recipe>
+`;
+      });
+    });
+  } else {
+    // Custom recipe: result = F0L1, with specified resources
+    // Generate for each level that has an ID
+    fusionData.forEach(f => {
+      f.levels.forEach(l => {
+        if(!l.card_id) return;
+        xml += `	<fusion_recipe>
+		<card_id>${l.card_id}</card_id>
+`;
+        recipeResources.forEach(res => {
+          if(res.card_id) xml += `		<resource card_id="${res.card_id}" number="${res.number}"/>
+`;
+        });
+        xml += `	</fusion_recipe>
+`;
+      });
+    });
+  }
+  
+  const el = document.getElementById('recipeOut');
+  if(el) el.textContent = xml.trimEnd();
+}
+
+function copyRecipe() {
+  const el = document.getElementById('recipeOut');
+  if(el) navigator.clipboard.writeText(el.textContent).catch(()=>{});
 }
 
 buildFusionTabs();buildLevelTabs();skillRows=[];syncSharedToAll();buildCardTypeButtons();rebuildFusionStructure();buildFusionTabs();buildLevelTabs();loadCurrent();
