@@ -258,22 +258,20 @@ input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-
   <div id="skillsContainer"></div>
   <button class="add-skill-btn" onclick="addSkill()">+ Add skill</button>
   <button class="add-skill-btn" onclick="copySkillsToAllLevels(true)" style="margin-top:4px;color:#b080f8;border-color:#6040a0">↓↓ Copy skills to ALL levels (all fusions)</button>
-  <button class="add-skill-btn" onclick="openRandStats()" style="margin-top:6px;color:#f4c066;border-color:#8a6020">🎲 Random stats…</button>
+  <button class="add-skill-btn" onclick="openRandStats()" style="margin-top:6px;color:#f4c066;border-color:#8a6020">📐 Scale stats…</button>
   <div id="randPanel" style="display:none;background:#1e1800;border:1px solid #6a4800;border-radius:6px;padding:10px;margin-top:6px;">
-    <div style="font-size:10px;font-weight:600;color:#f4c066;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Random Stats Generator</div>
-    <div style="font-size:10px;color:#888;margin-bottom:8px">Enter F0 Lvl1 (min) and F2 Lvl6 (max) values — intermediate levels filled randomly (monotone).</div>
-    <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 8px;align-items:center;font-size:11px;">
-      <span style="color:#888"></span><span style="color:#f4c066;font-size:10px">F0 Lvl1 (min)</span><span style="color:#f4c066;font-size:10px">F2 Lvl6 (max)</span>
+    <div style="font-size:10px;font-weight:600;color:#f4c066;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Stat Scaler</div>
+    <div style="font-size:10px;color:#888;margin-bottom:8px">Enter F2 Lvl6 (max) values — all levels calculated automatically using fixed ratios (0.5 / 0.6 / 0.8 / 1.0).</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:11px;">
+      <span style="color:#888"></span><span style="color:#f4c066;font-size:10px">F2 Lvl6 (max)</span>
       <span style="color:#888">Attack</span>
-      <div id="rs_atk_min_wrap"></div>
       <div id="rs_atk_max_wrap"></div>
       <span style="color:#888">HP</span>
-      <div id="rs_hp_min_wrap"></div>
       <div id="rs_hp_max_wrap"></div>
     </div>
     <div id="rs_skill_rows" style="margin-top:8px"></div>
     <div style="display:flex;gap:6px;margin-top:10px">
-      <button onclick="applyRandStats()" style="flex:1;background:#2a1800;border:1px solid #6a4800;border-radius:5px;color:#f4c066;font-size:11px;padding:5px;cursor:pointer">🎲 Generate</button>
+      <button onclick="applyRandStats()" style="flex:1;background:#2a1800;border:1px solid #6a4800;border-radius:5px;color:#f4c066;font-size:11px;padding:5px;cursor:pointer">📐 Apply</button>
       <button onclick="document.getElementById('randPanel').style.display='none'" style="background:#2a2a2a;border:1px solid #444;border-radius:5px;color:#888;font-size:11px;padding:5px 10px;cursor:pointer">✕</button>
     </div>
   </div>
@@ -1088,7 +1086,7 @@ function openRandStats() {
   const f0l1 = fusionData[0].levels[0];
   const lastF = fusionData[fusionData.length-1];
   const f2l6 = lastF.levels[lastF.levels.length-1];
-  const rsVals = {rs_atk_min:f0l1.attack||0, rs_atk_max:f2l6.attack||0, rs_hp_min:f0l1.health||0, rs_hp_max:f2l6.health||0};
+  const rsVals = {rs_atk_max:f2l6.attack||0, rs_hp_max:f2l6.health||0};
   for(const [id, val] of Object.entries(rsVals)) {
     const w = document.getElementById(id+'_wrap');
     if(w){ w.innerHTML=''; w.appendChild(makeRsInput(id, val)); }
@@ -1103,69 +1101,108 @@ function openRandStats() {
     const a = def.a;
     const rows = [];
     const f2sk = f2l6.skills[si] || {};
-    if(a.x) rows.push({attr:'x', label: (def.name+' Strength'), minV: sk.x||0, maxV: f2sk.x||sk.x||0});
-    if(a.n) rows.push({attr:'n', label: (def.name+' Count'), minV: sk.n||0, maxV: f2sk.n||sk.n||0});
-    if(a.c) rows.push({attr:'c', label: (def.name+' Cooldown'), minV: sk.c||0, maxV: f2sk.c||sk.c||0, decreasing: true});
+    if(a.x) rows.push({attr:'x', label: (def.name+' Strength'), maxV: f2sk.x||sk.x||0});
+    if(a.n) rows.push({attr:'n', label: (def.name+' Count'), maxV: f2sk.n||sk.n||0});
+    if(a.c) rows.push({attr:'c', label: (def.name+' Cooldown (min)'), maxV: f2sk.c||sk.c||0, decreasing: true});
     rows.forEach(row => {
       const rowDiv = document.createElement('div');
-      rowDiv.style.cssText = 'display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 8px;align-items:center;margin-top:4px;font-size:11px';
+      rowDiv.style.cssText = 'display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;margin-top:4px;font-size:11px';
       const lbl = document.createElement('span');
       lbl.style.color = '#888';
-      lbl.textContent = row.label + (row.decreasing?' ↓':'');
-      const minInp = makeRsInput(`rs_sk_${si}_${row.attr}_min`, row.minV);
+      lbl.textContent = row.label;
       const maxInp = makeRsInput(`rs_sk_${si}_${row.attr}_max`, row.maxV);
-      rowDiv.append(lbl, minInp, maxInp);
+      rowDiv.append(lbl, maxInp);
       skContainer.appendChild(rowDiv);
     });
   });
 }
 
-// Distribute `total` increase randomly across `slots` intervals (non-negative integers)
-function randDistribute(total, slots) {
-  if(total <= 0 || slots <= 0) return new Array(slots).fill(0);
-  // Stars and bars: place `total` increases into `slots` buckets randomly
-  const result = new Array(slots).fill(0);
-  for(let i = 0; i < total; i++) {
-    result[Math.floor(Math.random() * slots)]++;
+// Generate a deterministic scaled sequence across all fusions/levels.
+//
+// Scaling rules (derived from official card XMLs):
+//   F0 L1..L6: linear from Max×0.5 to Max×0.6
+//   F1 Ln (n=1..6): ROUND(F0L6 + (F1L6−F0L6) × n/6)  [F1L6 = Max×0.8]
+//   F2 Ln (n=1..6): ROUND(F1L6 + (F2L6−F1L6) × n/6)  [F2L6 = Max×1.0]
+//
+// For cards with fewer/more fusions or non-6 levels, the same ratio anchors
+// (0.5 → 0.6 → 0.8 → 1.0) are distributed proportionally.
+//
+// Decreasing (Cooldown): ratios are mirrored: 1.0→0.8→0.6→0.5 per fusion end-points,
+// then reversed so F0L1 is highest and last level is lowest.
+function scaledSequence(maxV, fusions, decreasing) {
+  if(!maxV || !fusions || fusions.length === 0) return [];
+
+  const numFusions = fusions.length;
+  const result = [];
+
+  // Ratio anchor points per fusion end (from 0-th to last fusion)
+  // For 1 fusion:  [0.5, 1.0]          (start, end)
+  // For 2 fusions: [0.5, 0.6(?), 1.0]  → approximate with [0.5, 0.8, 1.0]
+  // For 3 fusions: [0.5, 0.6, 0.8, 1.0]
+  // For 4 fusions (Commander): [0.5, 0.6, 0.8, 0.9(?), 1.0] — approximate with even spacing 0.5..1.0
+  // We use the canonical 4 control points and pick the relevant ones by fusion count.
+  const controlRatios = [0.5, 0.6, 0.8, 1.0]; // for 3-fusion standard
+  // Build per-fusion anchors (start/end ratio of each fusion):
+  const fusionAnchors = []; // [{start, end}]
+  if(numFusions === 1) {
+    fusionAnchors.push({start: 0.5, end: 1.0});
+  } else if(numFusions === 2) {
+    fusionAnchors.push({start: 0.5, end: 0.8});
+    fusionAnchors.push({start: 0.8, end: 1.0});
+  } else if(numFusions === 3) {
+    fusionAnchors.push({start: 0.5, end: 0.6});
+    fusionAnchors.push({start: 0.6, end: 0.8});
+    fusionAnchors.push({start: 0.8, end: 1.0});
+  } else {
+    // 4+ fusions: distribute evenly from 0.5→1.0 across fusion boundaries
+    for(let fi=0; fi<numFusions; fi++) {
+      const s = 0.5 + (0.5 * fi / numFusions);
+      const e = 0.5 + (0.5 * (fi+1) / numFusions);
+      fusionAnchors.push({start: s, end: e});
+    }
   }
-  // Sort so smaller increases come first (smoother curve) — with some randomness
-  // Actually: shuffle is more authentic. Keep as-is for true randomness.
+
+  if(decreasing) {
+    // Mirror ratios: highest at F0L1, lowest at last level
+    fusionAnchors.forEach(a => { const tmp=a.start; a.start=1.5-a.end; a.end=1.5-tmp; });
+    fusionAnchors.reverse();
+  }
+
+  fusions.forEach((f, fi) => {
+    const {start, end} = fusionAnchors[fi];
+    const numLvl = f.levels.length;
+    const startV = Math.round(maxV * start);
+    const endV   = Math.round(maxV * end);
+
+    if(fi === 0) {
+      // First fusion: standard linear interpolation L1..Ln
+      for(let li=0; li<numLvl; li++) {
+        result.push(Math.round(startV + (endV - startV) * li / Math.max(1, numLvl-1)));
+      }
+    } else {
+      // Subsequent fusions: ROUND(prevEnd + (end - prevEnd) * n / numLvl) for n=1..numLvl
+      // This matches the sheet formula exactly (n starts at 1, not 0)
+      const prevEndV = Math.round(maxV * fusionAnchors[fi-1].end);
+      for(let n=1; n<=numLvl; n++) {
+        result.push(Math.round(prevEndV + (endV - prevEndV) * n / numLvl));
+      }
+    }
+  });
+
   return result;
 }
 
 function applyRandStats() {
-  // Derive N from actual fusionData structure (handles Common/Rare/Commander etc.)
-  let N = 0;
-  fusionData.forEach(f => N += f.levels.length);
-  const SLOTS = Math.max(1, N - 1);
-
-  // Read values — inputs are inside wrapper divs, find by id
+  // Read values
   const getVal = (id) => {
     const el = document.getElementById(id);
     return el ? (parseInt(el.value)||0) : 0;
   };
-  const atkMin = getVal('rs_atk_min');
-  const atkMax = getVal('rs_atk_max') || atkMin;
-  const hpMin  = getVal('rs_hp_min');
-  const hpMax  = getVal('rs_hp_max') || hpMin;
+  const atkMax = getVal('rs_atk_max');
+  const hpMax  = getVal('rs_hp_max');
 
-  function genIncreasing(minV, maxV) {
-    const diff = Math.max(0, maxV - minV);
-    const inc = randDistribute(diff, SLOTS);
-    const seq = [minV];
-    for(let i=0;i<SLOTS;i++) seq.push(seq[seq.length-1] + inc[i]);
-    return seq;
-  }
-  function genDecreasing(minV, maxV) {
-    const diff = Math.max(0, minV - maxV);
-    const dec = randDistribute(diff, SLOTS);
-    const seq = [minV];
-    for(let i=0;i<SLOTS;i++) seq.push(seq[seq.length-1] - dec[i]);
-    return seq;
-  }
-
-  const atkSeq = genIncreasing(atkMin, atkMax);
-  const hpSeq  = genIncreasing(hpMin, hpMax);
+  const atkSeq = scaledSequence(atkMax, fusionData, false);
+  const hpSeq  = scaledSequence(hpMax, fusionData, false);
 
   // Apply attack + health
   let pos = 0;
@@ -1190,23 +1227,22 @@ function applyRandStats() {
     }));
 
     if(a.x) {
-      const minV = getVal(`rs_sk_${si}_x_min`);
-      const maxV = getVal(`rs_sk_${si}_x_max`) || minV;
-      const seq = genIncreasing(minV, maxV);
+      const maxV = getVal(`rs_sk_${si}_x_max`);
+      const seq = scaledSequence(maxV, fusionData, false);
       let p = 0;
       fusionData.forEach(f => f.levels.forEach(l => { l.skills[si].x = seq[p++]; }));
     }
     if(a.n) {
-      const minV = getVal(`rs_sk_${si}_n_min`);
-      const maxV = getVal(`rs_sk_${si}_n_max`) || minV;
-      const seq = genIncreasing(minV, maxV);
+      const maxV = getVal(`rs_sk_${si}_n_max`);
+      const seq = scaledSequence(maxV, fusionData, false);
       let p = 0;
       fusionData.forEach(f => f.levels.forEach(l => { l.skills[si].n = seq[p++]; }));
     }
     if(a.c) {
-      const minV = getVal(`rs_sk_${si}_c_min`);
-      const maxV = getVal(`rs_sk_${si}_c_max`) || minV;
-      const seq = genDecreasing(minV, maxV);
+      // Cooldown: max value at F0L1, min at F2L6 — use decreasing sequence
+      const minV = getVal(`rs_sk_${si}_c_max`); // field label says "min" (target end value)
+      const f0l1c = (fusionData[0].levels[0].skills[si]||{}).c || minV;
+      const seq = scaledSequence(f0l1c, fusionData, true).map(v => Math.max(minV, v));
       let p = 0;
       fusionData.forEach(f => f.levels.forEach(l => { l.skills[si].c = seq[p++]; }));
     }
